@@ -25,11 +25,12 @@ const { Option } = Select
 const { RangePicker } = DatePicker
 
 export default function StatisticsArchive() {
-  const { episodes, listenData, sponsorSlots, seasons, topics, guests } = useAppStore()
+  const { episodes, listenData, sponsorSlots, seasons, topics, guests, addListenData } = useAppStore()
   const [activeTab, setActiveTab] = useState('statistics')
   const [searchText, setSearchText] = useState('')
   const [dataModal, setDataModal] = useState(false)
   const [form] = Form.useForm()
+  const [submitting, setSubmitting] = useState(false)
 
   const publishedEpisodes = episodes.filter(e => e.status === 'published' || e.status === 'archived')
 
@@ -289,6 +290,29 @@ export default function StatisticsArchive() {
     }
   ]
 
+  const handleSubmitListenData = async () => {
+    try {
+      setSubmitting(true)
+      const values = await form.validateFields()
+      addListenData({
+        episodeId: values.episodeId,
+        platform: values.platform,
+        listens: Number(values.listens) || 0,
+        uniqueListeners: Number(values.uniqueListeners) || 0,
+        avgListenDuration: Number(values.avgListenDuration) || 0,
+        completionRate: values.completionRate ? Number(values.completionRate) / 100 : 0,
+        date: values.date.format('YYYY-MM-DD')
+      })
+      message.success('数据已录入')
+      setDataModal(false)
+      form.resetFields()
+    } catch (err) {
+      message.error('请完整填写所有必填项')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   return (
     <div>
       <Card bodyStyle={{ padding: 0 }}>
@@ -304,8 +328,11 @@ export default function StatisticsArchive() {
         title="录入收听数据"
         open={dataModal}
         onCancel={() => setDataModal(false)}
-        onOk={() => { setDataModal(false); message.success('数据已录入') }}
+        onOk={handleSubmitListenData}
+        confirmLoading={submitting}
         width={520}
+        okText="确认录入"
+        cancelText="取消"
       >
         <Form form={form} layout="vertical">
           <Form.Item name="episodeId" label="选择单集" rules={[{ required: true }]}>

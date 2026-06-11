@@ -9,10 +9,11 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "electron:dev": "vite",
-    "electron:build": "vite build && electron-builder",
+    "install:electron": "node scripts/install-electron.js",
+    "electron:dev": "npm run install:electron && vite",
+    "electron:build": "npm run install:electron && vite build && electron-builder",
     "start": "electron .",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "node scripts/install-electron.js || echo Electron download skipped, run npm run install:electron later"
   },
   "dependencies": {
     "@ant-design/icons": "^5.2.6",

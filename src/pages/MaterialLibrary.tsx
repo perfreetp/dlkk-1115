@@ -31,6 +31,26 @@ export default function MaterialLibrary() {
   const [detailDrawer, setDetailDrawer] = useState(false)
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null)
   const [form] = Form.useForm()
+  const [selectedFiles, setSelectedFiles] = useState<any[]>([])
+  const [submitting, setSubmitting] = useState(false)
+
+  const detectType = (mimeType: string, fileName: string): 'audio' | 'image' | 'document' | 'video' | 'other' => {
+    if (mimeType.startsWith('audio/')) return 'audio'
+    if (mimeType.startsWith('image/')) return 'image'
+    if (mimeType.startsWith('video/')) return 'video'
+    if (
+      mimeType.includes('pdf') ||
+      mimeType.includes('word') ||
+      mimeType.includes('excel') ||
+      mimeType.includes('text/') ||
+      /\.(docx?|xlsx?|pptx?|pdf|txt|md|csv)$/i.test(fileName)
+    ) return 'document'
+    if (/\.(mp3|wav|flac|aac|ogg|m4a)$/i.test(fileName)) return 'audio'
+    if (/\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(fileName)) return 'image'
+    if (/\.(mp4|mov|avi|mkv|webm)$/i.test(fileName)) return 'video'
+    if (/\.(pdf|docx?|xlsx?|pptx?|txt|md)$/i.test(fileName)) return 'document'
+    return 'other'
+  }
 
   const filteredMaterials = materials.filter(m => {
     const matchSearch = m.name.includes(searchText) || m.tags.some(t => t.includes(searchText))
@@ -78,23 +98,50 @@ export default function MaterialLibrary() {
     setDetailDrawer(true)
   }
 
-  const handleUpload = () => {
-    form.validateFields().then(values => {
-      addMaterial({
-        name: values.name,
-        type: values.type,
-        filePath: '/materials/' + values.name,
-        fileSize: Math.floor(Math.random() * 10 * 1024 * 1024),
-        duration: values.type === 'audio' ? 180 : undefined,
-        tags: values.tags || [],
-        episodeId: values.episodeId,
-        importedBy: 'm1',
-        description: values.description
+  const handleUpload = async () => {
+    try {
+      setSubmitting(true)
+      const values = await form.validateFields()
+      if (selectedFiles.length === 0) {
+        message.error('请先选择或拖入文件')
+        return
+      }
+      selectedFiles.forEach(file => {
+        const fileType = detectType(file.type || '', file.name)
+        addMaterial({
+          name: file.name,
+          type: values.type || fileType,
+          filePath: file.path || URL.createObjectURL(file) || '/materials/' + file.name,
+          fileSize: file.size,
+          duration: fileType === 'audio' ? undefined : undefined,
+          tags: values.tags || [],
+          episodeId: values.episodeId,
+          importedBy: 'm1',
+          description: values.description || ''
+        })
       })
       setUploadModal(false)
+      setSelectedFiles([])
       form.resetFields()
-      message.success('素材导入成功')
-    })
+      message.success(`成功导入 ${selectedFiles.length} 个素材`)
+    } catch (err) {
+      if (selectedFiles.length === 0) {
+        message.error('请先选择或拖入文件')
+      }
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleFilesSelected = (fileList: any[]) => {
+    setSelectedFiles(fileList)
+    if (fileList.length > 0) {
+      const firstFile = fileList[0]
+      const detectedType = detectType(firstFile.type || '', firstFile.name)
+      form.setFieldsValue({
+        type: detectedType
+      })
+    }
   }
 
   const typeStats = {
@@ -212,30 +259,68 @@ export default function MaterialLibrary() {
         title="导入素材"
         open={uploadModal}
         onOk={handleUpload}
-        onCancel={() => setUploadModal(false)}
-        width={520}
-        okText="导入"
+        onCancel={() => { setUploadModal(false); setSelectedFiles([]); form.resetFields() }}
+        width={560}
+        okText="确认导入"
         cancelText="取消"
+        confirmLoading={submitting}
       >
         <Form form={form} layout="vertical">
-          <Form.Item label="上传文件">
+          <Form.Item label="选择文件" required>
             <Upload.Dragger
-              beforeUpload={() => false}
               multiple
+              fileList={selectedFiles.map((f, i) => ({
+                uid: String(i),
+                name: f.name,
+                size: f.size,
+                type: f.type,
+                originFileObj: f,
+                status: 'done'
+              }))}
+              onChange={(info) => {
+                const files = info.fileList.map((f: any) => f.originFileObj || f)
+                handleFilesSelected(files.filter(Boolean))
+              }}
+              beforeUpload={() => {
+                return false
+              }}
+              showUploadList={{
+                showSize: true,
+                showType: true
+              }}
             >
               <p className="ant-upload-drag-icon">
                 <UploadOutlined />
               </p>
-              <p className="ant-upload-text">点击或拖拽文件到此处上传</p>
-              <p className="ant-upload-hint">支持音频、图片、文档等多种格式</p>
+              <p className="ant-upload-text">点击或拖拽文件到此处</p>
+              <p className="ant-upload-hint">支持音频、图片、文档、视频等多种格式，名称和类型将自动识别</p>
             </Upload.Dragger>
-          </Form.Item>
-          <Form.Item name="name" label="素材名称" rules={[{ required: true }]}>
-            <Input placeholder="请输入素材名称" />
+            {selectedFiles.length > 0 && (
+              <div style={{ marginTop: 8, padding: '8px 12px', background: '#f5f5f5', borderRadius: 4, fontSize: 12 }}>
+                <div>
+                  已选择 <strong style={{ color: '#1677ff' }}>{selectedFiles.length}</strong> 个文件，
+                  共 <strong>{formatFileSize(selectedFiles.reduce((s, f) => s + f.size, 0))}</strong>
+                </div>
+                {selectedFiles.slice(0, 3).map((f, i) => (
+                  <div key={i} style={{ color: '#666', fontSize: 11 }}>
+                    · {f.name} ({formatFileSize(f.size)})
+                  </div>
+                ))}
+                {selectedFiles.length > 3 && (
+                  <div style={{ color: '#999', fontSize: 11 }}>
+                    ... 还有 {selectedFiles.length - 3} 个文件
+                  </div>
+                )}
+              </div>
+            )}
           </Form.Item>
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="type" label="素材类型" rules={[{ required: true }]}>
+              <Form.Item
+                name="type"
+                label="素材类型"
+                rules={[{ required: true, message: '请选择素材类型' }]}
+              >
                 <Select placeholder="请选择类型">
                   <Option value="audio">音频</Option>
                   <Option value="image">图片</Option>
@@ -247,7 +332,7 @@ export default function MaterialLibrary() {
             </Col>
             <Col span={12}>
               <Form.Item name="episodeId" label="关联单集">
-                <Select placeholder="选择关联的单集" allowClear>
+                <Select placeholder="选择关联的单集（可选）" allowClear>
                   {episodes.map(ep => (
                     <Option key={ep.id} value={ep.id}>第{ep.episodeNumber}集 · {ep.title}</Option>
                   ))}
@@ -256,10 +341,10 @@ export default function MaterialLibrary() {
             </Col>
           </Row>
           <Form.Item name="tags" label="标签">
-            <Select mode="tags" placeholder="输入标签后按回车添加" />
+            <Select mode="tags" placeholder="输入标签后按回车添加（可选）" />
           </Form.Item>
-          <Form.Item name="description" label="描述">
-            <Input.TextArea rows={2} placeholder="请输入素材描述" />
+          <Form.Item name="description" label="备注说明">
+            <Input.TextArea rows={2} placeholder="请输入备注（可选）" />
           </Form.Item>
         </Form>
       </Modal>

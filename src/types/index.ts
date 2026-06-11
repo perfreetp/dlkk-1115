@@ -192,17 +192,19 @@ export interface ReviewComment {
   replyTo?: string
 }
 
+export interface PublishChecklistItem {
+  id: string
+  label: string
+  category: string
+  checked: boolean
+  checkedBy?: string
+  checkedAt?: string
+}
+
 export interface PublishChecklist {
   id: string
   episodeId: string
-  items: {
-    id: string
-    label: string
-    category: string
-    checked: boolean
-    checkedBy?: string
-    checkedAt?: string
-  }[]
+  items: PublishChecklistItem[]
 }
 
 export interface ListenData {

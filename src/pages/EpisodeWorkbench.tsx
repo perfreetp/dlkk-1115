@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   Tabs, Card, Tag, Space, Typography, Button, Avatar, Descriptions,
   Row, Col, List, Input, Form, Modal, Select, DatePicker, Radio,
-  Table, Progress, Badge, Empty, Timeline, message, Divider
+  Table, Progress, Badge, Empty, Timeline, message, Divider, Checkbox
 } from 'antd'
 import {
   ArrowLeftOutlined,
@@ -51,7 +51,8 @@ export default function EpisodeWorkbench() {
     episodes, seasons, guests, topics, editTodos, reviewComments,
     timelineNotes, materials, mistakeRecords, clipMarkers, copyrightMusic,
     coverDrafts, copywritings, publishChecklists, teamMembers, sponsorSlots,
-    updateEpisode, addEditTodo, updateEditTodo, addReviewComment, resolveReviewComment
+    updateEpisode, addEditTodo, updateEditTodo, addReviewComment, resolveReviewComment,
+    togglePublishChecklistItem
   } = useAppStore()
 
   const [activeTab, setActiveTab] = useState('overview')
@@ -904,37 +905,71 @@ export default function EpisodeWorkbench() {
       children: (
         <Card title="发布检查清单">
           {episodeChecklist ? (
-            <Space direction="vertical" size={16} style={{ width: '100%' }}>
+            <Space direction="vertical" size={20} style={{ width: '100%' }}>
               <div>
-                <Text strong>完成进度</Text>
+                <Row justify="space-between" align="middle" style={{ marginBottom: 8 }}>
+                  <Text strong>完成进度</Text>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    {episodeChecklist.items.filter(i => i.checked).length} / {episodeChecklist.items.length}
+                  </Text>
+                </Row>
                 <Progress
                   percent={Math.round((episodeChecklist.items.filter(i => i.checked).length / episodeChecklist.items.length) * 100)}
-                  style={{ marginTop: 8 }}
+                  size="small"
+                  status={
+                    episodeChecklist.items.every(i => i.checked) ? 'success' : 'active'
+                  }
                 />
               </div>
               {['内容', '文案', '版权', '发布'].map(category => {
                 const items = episodeChecklist.items.filter(i => i.category === category)
                 if (items.length === 0) return null
+                const categoryDone = items.filter(i => i.checked).length
                 return (
                   <div key={category}>
-                    <Text strong style={{ marginBottom: 8, display: 'block' }}>{category}</Text>
-                    {items.map(item => (
-                      <div key={item.id} style={{ display: 'flex', alignItems: 'center', padding: '6px 0' }}>
-                        <CheckCircleOutlined
+                    <Row justify="space-between" align="middle" style={{ marginBottom: 8 }}>
+                      <Text strong>{category}</Text>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        {categoryDone} / {items.length} 完成
+                      </Text>
+                    </Row>
+                    <Checkbox.Group style={{ width: '100%' }}>
+                      {items.map(item => (
+                        <div
+                          key={item.id}
                           style={{
-                            color: item.checked ? '#52c41a' : '#d9d9d9',
-                            marginRight: 8,
-                            fontSize: 16
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: '8px 12px',
+                            background: item.checked ? '#f6ffed' : '#fafafa',
+                            borderRadius: 4,
+                            marginBottom: 6,
+                            cursor: 'pointer',
+                            border: item.checked ? '1px solid #b7eb8f' : '1px solid transparent',
+                            transition: 'all 0.2s'
                           }}
-                        />
-                        <Text delete={item.checked}>{item.label}</Text>
-                        {item.checked && item.checkedAt && (
-                          <Text type="secondary" style={{ fontSize: 12, marginLeft: 'auto' }}>
-                            {item.checkedAt}
-                          </Text>
-                        )}
-                      </div>
-                    ))}
+                          onClick={() => togglePublishChecklistItem(episodeChecklist.id, item.id, 'm1')}
+                        >
+                          <Checkbox
+                            checked={item.checked}
+                            onChange={() => togglePublishChecklistItem(episodeChecklist.id, item.id, 'm1')}
+                            onClick={e => e.stopPropagation()}
+                          >
+                            <span style={{
+                              color: item.checked ? '#52c41a' : '#262626',
+                              textDecoration: item.checked ? 'line-through' : 'none'
+                            }}>
+                              {item.label}
+                            </span>
+                          </Checkbox>
+                          {item.checked && item.checkedAt && (
+                            <Text type="secondary" style={{ fontSize: 11, marginLeft: 'auto' }}>
+                              {dayjs(item.checkedAt).format('MM-DD HH:mm')}
+                            </Text>
+                          )}
+                        </div>
+                      ))}
+                    </Checkbox.Group>
                   </div>
                 )
               })}
